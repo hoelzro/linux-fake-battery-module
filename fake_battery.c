@@ -57,6 +57,7 @@ fake_battery_init(void)
 static void __exit
 fake_battery_exit(void)
 {
+    misc_deregister(&control_device);
     printk(KERN_INFO "unloaded fake_battery module\n");
 }
 
