@@ -29,9 +29,49 @@ control_device_read(struct file *file, char *buffer, size_t count, loff_t *ppos)
     return message_len;
 }
 
+static ssize_t
+control_device_write(struct file *file, const char *buffer, size_t count, loff_t *ppos)
+{
+    char kbuffer[1024]; // limited by kernel frame size, 1K should be enough
+    char *buffer_cursor;
+    char *newline;
+    int iter_count = 0;
+
+    int status;
+
+    if(*ppos != 0) {
+        printk(KERN_ERR "writes to /dev/fake_battery must be completed in a single system call\n");
+        return -EINVAL;
+    }
+
+    if(count > 1024) {
+        count = 1024;
+    }
+
+    status = copy_from_user(kbuffer, buffer, count);
+
+    if(status != 0) {
+        printk(KERN_ERR "bad copy_from_user\n");
+        return -EINVAL;
+    }
+
+    buffer_cursor = kbuffer;
+
+    while((newline = memchr(buffer_cursor, '\n', count))) {
+        *newline = '\0';
+        printk(KERN_INFO "got line: %s\n", buffer_cursor);
+
+        count         -= (newline - buffer_cursor) + 1;
+        buffer_cursor  = newline + 1;
+    }
+
+    return count;
+}
+
 static struct file_operations control_device_ops = {
     .owner = THIS_MODULE,
     .read = control_device_read,
+    .write = control_device_write,
 };
 
 static struct miscdevice control_device = {
