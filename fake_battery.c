@@ -96,6 +96,95 @@ static struct miscdevice control_device = {
     &control_device_ops,
 };
 
+static enum power_supply_property fake_battery_properties[] = {
+        POWER_SUPPLY_PROP_STATUS,
+        POWER_SUPPLY_PROP_CHARGE_TYPE,
+        POWER_SUPPLY_PROP_HEALTH,
+        POWER_SUPPLY_PROP_PRESENT,
+        POWER_SUPPLY_PROP_TECHNOLOGY,
+        POWER_SUPPLY_PROP_CHARGE_FULL_DESIGN,
+        POWER_SUPPLY_PROP_CHARGE_FULL,
+        POWER_SUPPLY_PROP_CHARGE_NOW,
+        POWER_SUPPLY_PROP_CAPACITY,
+        POWER_SUPPLY_PROP_CAPACITY_LEVEL,
+        POWER_SUPPLY_PROP_TIME_TO_EMPTY_AVG,
+        POWER_SUPPLY_PROP_TIME_TO_FULL_NOW,
+        POWER_SUPPLY_PROP_MODEL_NAME,
+        POWER_SUPPLY_PROP_MANUFACTURER,
+        POWER_SUPPLY_PROP_SERIAL_NUMBER,
+        POWER_SUPPLY_PROP_TEMP,
+        POWER_SUPPLY_PROP_VOLTAGE_NOW,
+};
+
+static int fake_battery_get_property(struct power_supply *psy,
+                                           enum power_supply_property psp,
+                                           union power_supply_propval *val)
+{
+        switch (psp) {
+        case POWER_SUPPLY_PROP_MODEL_NAME:
+                val->strval = "Test battery";
+                break;
+        case POWER_SUPPLY_PROP_MANUFACTURER:
+                val->strval = "Linux";
+                break;
+        case POWER_SUPPLY_PROP_SERIAL_NUMBER:
+                val->strval = "12345678";
+                break;
+        case POWER_SUPPLY_PROP_STATUS:
+                val->intval = POWER_SUPPLY_STATUS_FULL;
+                break;
+        case POWER_SUPPLY_PROP_CHARGE_TYPE:
+                val->intval = POWER_SUPPLY_CHARGE_TYPE_FAST;
+                break;
+        case POWER_SUPPLY_PROP_HEALTH:
+                val->intval = POWER_SUPPLY_HEALTH_GOOD;
+                break;
+        case POWER_SUPPLY_PROP_PRESENT:
+                val->intval = 1;
+                break;
+        case POWER_SUPPLY_PROP_TECHNOLOGY:
+                val->intval = POWER_SUPPLY_TECHNOLOGY_LION;
+                break;
+        case POWER_SUPPLY_PROP_CAPACITY_LEVEL:
+                val->intval = POWER_SUPPLY_CAPACITY_LEVEL_NORMAL;
+                break;
+        case POWER_SUPPLY_PROP_CAPACITY:
+        case POWER_SUPPLY_PROP_CHARGE_NOW:
+                val->intval = 100;
+                break;
+        case POWER_SUPPLY_PROP_CHARGE_FULL_DESIGN:
+        case POWER_SUPPLY_PROP_CHARGE_FULL:
+                val->intval = 100;
+                break;
+        case POWER_SUPPLY_PROP_TIME_TO_EMPTY_AVG:
+        case POWER_SUPPLY_PROP_TIME_TO_FULL_NOW:
+                val->intval = 3600;
+                break;
+        case POWER_SUPPLY_PROP_TEMP:
+                val->intval = 26;
+                break;
+        case POWER_SUPPLY_PROP_VOLTAGE_NOW:
+                val->intval = 3300;
+                break;
+        default:
+                pr_info("%s: some properties deliberately report errors.\n",
+                        __func__);
+                return -EINVAL;
+        }
+        return 0;
+};
+
+static struct power_supply_desc fake_battery1 = {
+    .name = "BAT0",
+    .type = POWER_SUPPLY_TYPE_BATTERY,
+    .properties = fake_battery_properties,
+    .num_properties = ARRAY_SIZE(fake_battery_properties),
+    .get_property = fake_battery_get_property,
+};
+
+static struct power_supply_config fake_battery_config1 = {
+};
+
 static int __init
 fake_battery_init(void)
 {
@@ -106,6 +195,9 @@ fake_battery_init(void)
         printk(KERN_ERR "Unable to register misc device!");
         return result;
     }
+
+    power_supply_register(NULL, &fake_battery1, &fake_battery_config1);
+
     printk(KERN_INFO "loaded fake_battery module\n");
     return 0;
 }
