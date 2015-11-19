@@ -120,3 +120,5 @@ fake_battery_exit(void)
 
 module_init(fake_battery_init);
 module_exit(fake_battery_exit);
+
+MODULE_LICENSE("GPL");
