@@ -52,7 +52,6 @@ control_device_write(struct file *file, const char *buffer, size_t count, loff_t
     char kbuffer[1024]; // limited by kernel frame size, 1K should be enough
     char *buffer_cursor;
     char *newline;
-    int iter_count = 0;
 
     int status;
 
