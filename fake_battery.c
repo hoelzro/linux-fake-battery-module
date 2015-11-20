@@ -116,22 +116,31 @@ static enum power_supply_property fake_battery_properties[] = {
         POWER_SUPPLY_PROP_VOLTAGE_NOW,
 };
 
-static int fake_battery_get_property(struct power_supply *psy,
+static struct battery_status {
+    int status;
+    int capacity_level;
+    int capacity;
+    int time_left;
+} fake_battery_statuses[1] = {
+    {
+        .status = POWER_SUPPLY_STATUS_FULL,
+        .capacity_level = POWER_SUPPLY_CAPACITY_LEVEL_FULL,
+        .capacity = 100,
+        .time_left = 3600,
+    },
+};
+
+static int fake_battery_generic_get_property(struct power_supply *psy,
                                            enum power_supply_property psp,
-                                           union power_supply_propval *val)
+                                           union power_supply_propval *val,
+                                           struct battery_status *status)
 {
         switch (psp) {
-        case POWER_SUPPLY_PROP_MODEL_NAME:
-                val->strval = "Test battery";
-                break;
         case POWER_SUPPLY_PROP_MANUFACTURER:
                 val->strval = "Linux";
                 break;
-        case POWER_SUPPLY_PROP_SERIAL_NUMBER:
-                val->strval = "12345678";
-                break;
         case POWER_SUPPLY_PROP_STATUS:
-                val->intval = POWER_SUPPLY_STATUS_FULL;
+                val->intval = status->status;
                 break;
         case POWER_SUPPLY_PROP_CHARGE_TYPE:
                 val->intval = POWER_SUPPLY_CHARGE_TYPE_FAST;
@@ -146,11 +155,11 @@ static int fake_battery_get_property(struct power_supply *psy,
                 val->intval = POWER_SUPPLY_TECHNOLOGY_LION;
                 break;
         case POWER_SUPPLY_PROP_CAPACITY_LEVEL:
-                val->intval = POWER_SUPPLY_CAPACITY_LEVEL_NORMAL;
+                val->intval = status->capacity_level;
                 break;
         case POWER_SUPPLY_PROP_CAPACITY:
         case POWER_SUPPLY_PROP_CHARGE_NOW:
-                val->intval = 100;
+                val->intval = status->capacity;
                 break;
         case POWER_SUPPLY_PROP_CHARGE_FULL_DESIGN:
         case POWER_SUPPLY_PROP_CHARGE_FULL:
@@ -158,7 +167,7 @@ static int fake_battery_get_property(struct power_supply *psy,
                 break;
         case POWER_SUPPLY_PROP_TIME_TO_EMPTY_AVG:
         case POWER_SUPPLY_PROP_TIME_TO_FULL_NOW:
-                val->intval = 3600;
+                val->intval = status->time_left;
                 break;
         case POWER_SUPPLY_PROP_TEMP:
                 val->intval = 26;
@@ -173,6 +182,23 @@ static int fake_battery_get_property(struct power_supply *psy,
         }
         return 0;
 };
+
+static int fake_battery_get_property1(struct power_supply *psy,
+                                           enum power_supply_property psp,
+                                           union power_supply_propval *val)
+{
+        switch (psp) {
+        case POWER_SUPPLY_PROP_MODEL_NAME:
+                val->strval = "Fake battery 1";
+                break;
+        case POWER_SUPPLY_PROP_SERIAL_NUMBER:
+                val->strval = "12345678";
+                break;
+        default:
+                return fake_battery_generic_get_property(psy, psp, val, &fake_battery_statuses[0]);
+        }
+        return 0;
+}
 
 static struct power_supply_desc fake_battery1 = {
     .name = "BAT0",
