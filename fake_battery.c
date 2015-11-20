@@ -61,7 +61,8 @@ control_device_write(struct file *file, const char *buffer, size_t count, loff_t
     }
 
     if(count > 1024) {
-        count = 1024;
+        printk(KERN_ERR "Too much data provided to /dev/fake_battery (limit 1024 bytes)\n");
+        return -EINVAL;
     }
 
     status = copy_from_user(kbuffer, buffer, count);
