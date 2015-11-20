@@ -211,6 +211,8 @@ static struct power_supply_desc fake_battery1 = {
 static struct power_supply_config fake_battery_config1 = {
 };
 
+static struct power_supply *fake_battery;
+
 static int __init
 fake_battery_init(void)
 {
@@ -222,7 +224,7 @@ fake_battery_init(void)
         return result;
     }
 
-    power_supply_register(NULL, &fake_battery1, &fake_battery_config1);
+    fake_battery = power_supply_register(NULL, &fake_battery1, &fake_battery_config1);
 
     printk(KERN_INFO "loaded fake_battery module\n");
     return 0;
@@ -232,6 +234,7 @@ static void __exit
 fake_battery_exit(void)
 {
     misc_deregister(&control_device);
+    power_supply_unregister(fake_battery);
     printk(KERN_INFO "unloaded fake_battery module\n");
 }
 
