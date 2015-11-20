@@ -209,7 +209,7 @@ static struct power_supply_desc fake_battery1 = {
     .type = POWER_SUPPLY_TYPE_BATTERY,
     .properties = fake_battery_properties,
     .num_properties = ARRAY_SIZE(fake_battery_properties),
-    .get_property = fake_battery_get_property,
+    .get_property = fake_battery_get_property1,
 };
 
 static struct power_supply_config fake_battery_config1 = {
