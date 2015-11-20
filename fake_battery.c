@@ -49,7 +49,7 @@ control_device_read(struct file *file, char *buffer, size_t count, loff_t *ppos)
 static ssize_t
 control_device_write(struct file *file, const char *buffer, size_t count, loff_t *ppos)
 {
-    char kbuffer[1024]; // limited by kernel frame size, 1K should be enough
+    char kbuffer[1024]; /* limited by kernel frame size, 1K should be enough */
     char *buffer_cursor;
     char *newline;
 
