@@ -118,6 +118,10 @@ static enum power_supply_property fake_battery_properties[] = {
     POWER_SUPPLY_PROP_VOLTAGE_NOW,
 };
 
+static enum power_supply_property fake_ac_properties[] = {
+    POWER_SUPPLY_PROP_ONLINE,
+};
+
 static struct battery_status {
     int status;
     int capacity_level;
@@ -236,6 +240,21 @@ static struct power_supply_desc fake_battery_desc1 = {
     .get_property = fake_battery_get_property1,
 };
 
+static int
+fake_ac_get_property(struct power_supply *psy,
+        enum power_supply_property psp,
+        union power_supply_propval *val)
+{
+    switch (psp) {
+    case POWER_SUPPLY_PROP_ONLINE:
+            val->intval = 1; /* XXX allow change in state */
+            break;
+    default:
+            return -EINVAL;
+    }
+    return 0;
+}
+
 static struct power_supply_config fake_battery_config1 = {
 };
 
@@ -250,6 +269,25 @@ static struct power_supply_desc fake_battery_desc2 = {
 static struct power_supply_config fake_battery_config2 = {
 };
 
+static struct power_supply_desc fake_ac_desc = {
+    .name = "AC0",
+    .type = POWER_SUPPLY_TYPE_MAINS,
+    .properties = fake_ac_properties,
+    .num_properties = ARRAY_SIZE(fake_ac_properties),
+    .get_property = fake_ac_get_property,
+};
+
+static char *fake_ac_supplies[] = {
+    "BAT0",
+    "BAT1",
+};
+
+static struct power_supply_config fake_ac_config = {
+    .supplied_to = fake_ac_supplies,
+    .num_supplicants = ARRAY_SIZE(fake_ac_supplies),
+};
+
+static struct power_supply *fake_ac;
 static struct power_supply *fake_battery1;
 static struct power_supply *fake_battery2;
 
@@ -264,8 +302,10 @@ fake_battery_init(void)
         return result;
     }
 
+    /* XXX check for failure */
     fake_battery1 = power_supply_register(NULL, &fake_battery_desc1, &fake_battery_config1);
     fake_battery2 = power_supply_register(NULL, &fake_battery_desc2, &fake_battery_config2);
+    fake_ac = power_supply_register(NULL, &fake_ac_desc, &fake_ac_config);
 
     printk(KERN_INFO "loaded fake_battery module\n");
     return 0;
@@ -275,6 +315,7 @@ static void __exit
 fake_battery_exit(void)
 {
     misc_deregister(&control_device);
+    power_supply_unregister(fake_ac);
     power_supply_unregister(fake_battery1);
     power_supply_unregister(fake_battery2);
     printk(KERN_INFO "unloaded fake_battery module\n");
