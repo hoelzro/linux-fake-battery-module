@@ -123,7 +123,13 @@ static struct battery_status {
     int capacity_level;
     int capacity;
     int time_left;
-} fake_battery_statuses[1] = {
+} fake_battery_statuses[2] = {
+    {
+        .status = POWER_SUPPLY_STATUS_FULL,
+        .capacity_level = POWER_SUPPLY_CAPACITY_LEVEL_FULL,
+        .capacity = 100,
+        .time_left = 3600,
+    },
     {
         .status = POWER_SUPPLY_STATUS_FULL,
         .capacity_level = POWER_SUPPLY_CAPACITY_LEVEL_FULL,
@@ -204,7 +210,25 @@ fake_battery_get_property1(struct power_supply *psy,
     return 0;
 }
 
-static struct power_supply_desc fake_battery1 = {
+static int
+fake_battery_get_property2(struct power_supply *psy,
+        enum power_supply_property psp,
+        union power_supply_propval *val)
+{
+    switch (psp) {
+        case POWER_SUPPLY_PROP_MODEL_NAME:
+            val->strval = "Fake battery 2";
+            break;
+        case POWER_SUPPLY_PROP_SERIAL_NUMBER:
+            val->strval = "12345678";
+            break;
+        default:
+            return fake_battery_generic_get_property(psy, psp, val, &fake_battery_statuses[1]);
+    }
+    return 0;
+}
+
+static struct power_supply_desc fake_battery_desc1 = {
     .name = "BAT0",
     .type = POWER_SUPPLY_TYPE_BATTERY,
     .properties = fake_battery_properties,
@@ -215,7 +239,19 @@ static struct power_supply_desc fake_battery1 = {
 static struct power_supply_config fake_battery_config1 = {
 };
 
-static struct power_supply *fake_battery;
+static struct power_supply_desc fake_battery_desc2 = {
+    .name = "BAT1",
+    .type = POWER_SUPPLY_TYPE_BATTERY,
+    .properties = fake_battery_properties,
+    .num_properties = ARRAY_SIZE(fake_battery_properties),
+    .get_property = fake_battery_get_property2,
+};
+
+static struct power_supply_config fake_battery_config2 = {
+};
+
+static struct power_supply *fake_battery1;
+static struct power_supply *fake_battery2;
 
 static int __init
 fake_battery_init(void)
@@ -228,7 +264,8 @@ fake_battery_init(void)
         return result;
     }
 
-    fake_battery = power_supply_register(NULL, &fake_battery1, &fake_battery_config1);
+    fake_battery1 = power_supply_register(NULL, &fake_battery_desc1, &fake_battery_config1);
+    fake_battery2 = power_supply_register(NULL, &fake_battery_desc2, &fake_battery_config2);
 
     printk(KERN_INFO "loaded fake_battery module\n");
     return 0;
@@ -238,7 +275,8 @@ static void __exit
 fake_battery_exit(void)
 {
     misc_deregister(&control_device);
-    power_supply_unregister(fake_battery);
+    power_supply_unregister(fake_battery1);
+    power_supply_unregister(fake_battery2);
     printk(KERN_INFO "unloaded fake_battery module\n");
 }
 
