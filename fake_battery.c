@@ -44,6 +44,8 @@ static struct battery_status {
     },
 };
 
+static int ac_status = 1;
+
 static ssize_t
 control_device_read(struct file *file, char *buffer, size_t count, loff_t *ppos)
 {
@@ -239,7 +241,7 @@ fake_ac_get_property(struct power_supply *psy,
 {
     switch (psp) {
     case POWER_SUPPLY_PROP_ONLINE:
-            val->intval = 1; /* XXX allow change in state */
+            val->intval = ac_status;
             break;
     default:
             return -EINVAL;
