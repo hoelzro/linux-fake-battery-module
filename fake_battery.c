@@ -24,6 +24,26 @@
 
 #include <asm/uaccess.h>
 
+static struct battery_status {
+    int status;
+    int capacity_level;
+    int capacity;
+    int time_left;
+} fake_battery_statuses[2] = {
+    {
+        .status = POWER_SUPPLY_STATUS_FULL,
+        .capacity_level = POWER_SUPPLY_CAPACITY_LEVEL_FULL,
+        .capacity = 100,
+        .time_left = 3600,
+    },
+    {
+        .status = POWER_SUPPLY_STATUS_FULL,
+        .capacity_level = POWER_SUPPLY_CAPACITY_LEVEL_FULL,
+        .capacity = 100,
+        .time_left = 3600,
+    },
+};
+
 static ssize_t
 control_device_read(struct file *file, char *buffer, size_t count, loff_t *ppos)
 {
@@ -120,26 +140,6 @@ static enum power_supply_property fake_battery_properties[] = {
 
 static enum power_supply_property fake_ac_properties[] = {
     POWER_SUPPLY_PROP_ONLINE,
-};
-
-static struct battery_status {
-    int status;
-    int capacity_level;
-    int capacity;
-    int time_left;
-} fake_battery_statuses[2] = {
-    {
-        .status = POWER_SUPPLY_STATUS_FULL,
-        .capacity_level = POWER_SUPPLY_CAPACITY_LEVEL_FULL,
-        .capacity = 100,
-        .time_left = 3600,
-    },
-    {
-        .status = POWER_SUPPLY_STATUS_FULL,
-        .capacity_level = POWER_SUPPLY_CAPACITY_LEVEL_FULL,
-        .capacity = 100,
-        .time_left = 3600,
-    },
 };
 
 static int
