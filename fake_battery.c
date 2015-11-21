@@ -232,14 +232,6 @@ fake_battery_get_property2(struct power_supply *psy,
     return 0;
 }
 
-static struct power_supply_desc fake_battery_desc1 = {
-    .name = "BAT0",
-    .type = POWER_SUPPLY_TYPE_BATTERY,
-    .properties = fake_battery_properties,
-    .num_properties = ARRAY_SIZE(fake_battery_properties),
-    .get_property = fake_battery_get_property1,
-};
-
 static int
 fake_ac_get_property(struct power_supply *psy,
         enum power_supply_property psp,
@@ -255,46 +247,53 @@ fake_ac_get_property(struct power_supply *psy,
     return 0;
 }
 
-static struct power_supply_config fake_battery_config1 = {
-};
-
-static struct power_supply_desc fake_battery_desc2 = {
-    .name = "BAT1",
-    .type = POWER_SUPPLY_TYPE_BATTERY,
-    .properties = fake_battery_properties,
-    .num_properties = ARRAY_SIZE(fake_battery_properties),
-    .get_property = fake_battery_get_property2,
-};
-
-static struct power_supply_config fake_battery_config2 = {
-};
-
-static struct power_supply_desc fake_ac_desc = {
-    .name = "AC0",
-    .type = POWER_SUPPLY_TYPE_MAINS,
-    .properties = fake_ac_properties,
-    .num_properties = ARRAY_SIZE(fake_ac_properties),
-    .get_property = fake_ac_get_property,
-};
-
 static char *fake_ac_supplies[] = {
     "BAT0",
     "BAT1",
 };
 
-static struct power_supply_config fake_ac_config = {
-    .supplied_to = fake_ac_supplies,
-    .num_supplicants = ARRAY_SIZE(fake_ac_supplies),
+static struct power_supply_desc descriptions[] = {
+    {
+        .name = "BAT0",
+        .type = POWER_SUPPLY_TYPE_BATTERY,
+        .properties = fake_battery_properties,
+        .num_properties = ARRAY_SIZE(fake_battery_properties),
+        .get_property = fake_battery_get_property1,
+    },
+
+    {
+        .name = "BAT1",
+        .type = POWER_SUPPLY_TYPE_BATTERY,
+        .properties = fake_battery_properties,
+        .num_properties = ARRAY_SIZE(fake_battery_properties),
+        .get_property = fake_battery_get_property2,
+    },
+
+    {
+        .name = "AC0",
+        .type = POWER_SUPPLY_TYPE_MAINS,
+        .properties = fake_ac_properties,
+        .num_properties = ARRAY_SIZE(fake_ac_properties),
+        .get_property = fake_ac_get_property,
+    },
 };
 
-static struct power_supply *fake_ac;
-static struct power_supply *fake_battery1;
-static struct power_supply *fake_battery2;
+static struct power_supply_config configs[] = {
+    { },
+    { },
+    {
+        .supplied_to = fake_ac_supplies,
+        .num_supplicants = ARRAY_SIZE(fake_ac_supplies),
+    },
+};
+
+static struct power_supply *supplies[sizeof(descriptions) / sizeof(descriptions[0])];
 
 static int __init
 fake_battery_init(void)
 {
     int result;
+    int i;
 
     result = misc_register(&control_device);
     if(result) {
@@ -302,22 +301,36 @@ fake_battery_init(void)
         return result;
     }
 
-    /* XXX check for failure */
-    fake_battery1 = power_supply_register(NULL, &fake_battery_desc1, &fake_battery_config1);
-    fake_battery2 = power_supply_register(NULL, &fake_battery_desc2, &fake_battery_config2);
-    fake_ac = power_supply_register(NULL, &fake_ac_desc, &fake_ac_config);
+    for(i = 0; i < ARRAY_SIZE(descriptions); i++) {
+        supplies[i] = power_supply_register(NULL, &descriptions[i], &configs[i]);
+        if(IS_ERR(supplies[i])) {
+            printk(KERN_ERR "Unable to register power supply %d in fake_battery\n", i);
+            goto error;
+        }
+    }
 
     printk(KERN_INFO "loaded fake_battery module\n");
     return 0;
+
+error:
+    while(--i >= 0) {
+        power_supply_unregister(supplies[i]);
+    }
+    misc_deregister(&control_device);
+    return -1;
 }
 
 static void __exit
 fake_battery_exit(void)
 {
+    int i;
+
     misc_deregister(&control_device);
-    power_supply_unregister(fake_ac);
-    power_supply_unregister(fake_battery1);
-    power_supply_unregister(fake_battery2);
+
+    for(i = ARRAY_SIZE(descriptions) - 1; i >= 0; i--) {
+        power_supply_unregister(supplies[i]);
+    }
+
     printk(KERN_INFO "unloaded fake_battery module\n");
 }
 
