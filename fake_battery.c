@@ -24,6 +24,21 @@
 
 #include <asm/uaccess.h>
 
+static int
+fake_battery_get_property1(struct power_supply *psy,
+        enum power_supply_property psp,
+        union power_supply_propval *val);
+
+static int
+fake_battery_get_property2(struct power_supply *psy,
+        enum power_supply_property psp,
+        union power_supply_propval *val);
+
+static int
+fake_ac_get_property(struct power_supply *psy,
+        enum power_supply_property psp,
+        union power_supply_propval *val);
+
 static struct battery_status {
     int status;
     int capacity_level;
@@ -46,78 +61,9 @@ static struct battery_status {
 
 static int ac_status = 1;
 
-static ssize_t
-control_device_read(struct file *file, char *buffer, size_t count, loff_t *ppos)
-{
-    static char *message = "fake battery information!";
-    size_t message_len = strlen(message);
-
-    if(count < message_len) {
-        return -EINVAL;
-    }
-
-    if(*ppos != 0) {
-        return 0;
-    }
-
-    if(copy_to_user(buffer, message, message_len)) {
-        return -EINVAL;
-    }
-
-    *ppos = message_len;
-
-    return message_len;
-}
-
-static ssize_t
-control_device_write(struct file *file, const char *buffer, size_t count, loff_t *ppos)
-{
-    char kbuffer[1024]; /* limited by kernel frame size, 1K should be enough */
-    char *buffer_cursor;
-    char *newline;
-
-    int status;
-
-    if(*ppos != 0) {
-        printk(KERN_ERR "writes to /dev/fake_battery must be completed in a single system call\n");
-        return -EINVAL;
-    }
-
-    if(count > 1024) {
-        printk(KERN_ERR "Too much data provided to /dev/fake_battery (limit 1024 bytes)\n");
-        return -EINVAL;
-    }
-
-    status = copy_from_user(kbuffer, buffer, count);
-
-    if(status != 0) {
-        printk(KERN_ERR "bad copy_from_user\n");
-        return -EINVAL;
-    }
-
-    buffer_cursor = kbuffer;
-
-    while((newline = memchr(buffer_cursor, '\n', count))) {
-        *newline = '\0';
-        printk(KERN_INFO "got line: %s\n", buffer_cursor);
-
-        count         -= (newline - buffer_cursor) + 1;
-        buffer_cursor  = newline + 1;
-    }
-
-    return count;
-}
-
-static struct file_operations control_device_ops = {
-    .owner = THIS_MODULE,
-    .read = control_device_read,
-    .write = control_device_write,
-};
-
-static struct miscdevice control_device = {
-    MISC_DYNAMIC_MINOR,
-    "fake_battery",
-    &control_device_ops,
+static char *fake_ac_supplies[] = {
+    "BAT0",
+    "BAT1",
 };
 
 static enum power_supply_property fake_battery_properties[] = {
@@ -142,6 +88,197 @@ static enum power_supply_property fake_battery_properties[] = {
 
 static enum power_supply_property fake_ac_properties[] = {
     POWER_SUPPLY_PROP_ONLINE,
+};
+
+static struct power_supply_desc descriptions[] = {
+    {
+        .name = "BAT0",
+        .type = POWER_SUPPLY_TYPE_BATTERY,
+        .properties = fake_battery_properties,
+        .num_properties = ARRAY_SIZE(fake_battery_properties),
+        .get_property = fake_battery_get_property1,
+    },
+
+    {
+        .name = "BAT1",
+        .type = POWER_SUPPLY_TYPE_BATTERY,
+        .properties = fake_battery_properties,
+        .num_properties = ARRAY_SIZE(fake_battery_properties),
+        .get_property = fake_battery_get_property2,
+    },
+
+    {
+        .name = "AC0",
+        .type = POWER_SUPPLY_TYPE_MAINS,
+        .properties = fake_ac_properties,
+        .num_properties = ARRAY_SIZE(fake_ac_properties),
+        .get_property = fake_ac_get_property,
+    },
+};
+
+static struct power_supply_config configs[] = {
+    { },
+    { },
+    {
+        .supplied_to = fake_ac_supplies,
+        .num_supplicants = ARRAY_SIZE(fake_ac_supplies),
+    },
+};
+
+static struct power_supply *supplies[sizeof(descriptions) / sizeof(descriptions[0])];
+
+static ssize_t
+control_device_read(struct file *file, char *buffer, size_t count, loff_t *ppos)
+{
+    static char *message = "fake battery information!";
+    size_t message_len = strlen(message);
+
+    if(count < message_len) {
+        return -EINVAL;
+    }
+
+    if(*ppos != 0) {
+        return 0;
+    }
+
+    if(copy_to_user(buffer, message, message_len)) {
+        return -EINVAL;
+    }
+
+    *ppos = message_len;
+
+    return message_len;
+}
+
+#define prefixed(s, prefix)\
+    (!strncmp((s), (prefix), sizeof(prefix)-1))
+
+static int
+handle_control_line(const char *line, int *ac_status, struct battery_status *batteries)
+{
+    char *value_p;
+    long value;
+    int status;
+
+    value_p = strchrnul(line, '=');
+
+    if(!value_p) {
+        return -EINVAL;
+    }
+
+    value_p = skip_spaces(value_p + 1);
+
+    status = kstrtol(value_p, 10, &value);
+
+    if(status) {
+        return status;
+    }
+
+    if(prefixed(line, "capacity")) {
+        int battery_num = line[sizeof("capacity") - 1] - '0';
+        if(battery_num != 0 && battery_num != 1) {
+            return -ERANGE;
+        }
+        batteries[battery_num].capacity = value;
+    } else if(prefixed(line, "charging")) {
+        *ac_status = value;
+    } else {
+        return -EINVAL;
+    }
+
+    return 0;
+}
+
+static void
+handle_charge_changes(int ac_status, struct battery_status *battery)
+{
+    if(ac_status) {
+        if(battery->capacity < 100) {
+            battery->status = POWER_SUPPLY_STATUS_CHARGING;
+        } else {
+            battery->status = POWER_SUPPLY_STATUS_FULL;
+        }
+    } else {
+        battery->status = POWER_SUPPLY_STATUS_DISCHARGING;
+    }
+
+    if(battery->capacity >= 98) {
+        battery->capacity_level = POWER_SUPPLY_CAPACITY_LEVEL_FULL;
+    } else if(battery->capacity_level >= 70) {
+        battery->capacity_level = POWER_SUPPLY_CAPACITY_LEVEL_HIGH;
+    } else if(battery->capacity_level >= 30) {
+        battery->capacity_level = POWER_SUPPLY_CAPACITY_LEVEL_NORMAL;
+    } else if(battery->capacity_level >= 5) {
+        battery->capacity_level = POWER_SUPPLY_CAPACITY_LEVEL_LOW;
+    } else {
+        battery->capacity_level = POWER_SUPPLY_CAPACITY_LEVEL_CRITICAL;
+    }
+
+    battery->time_left = 36 * battery->capacity;
+}
+
+static ssize_t
+control_device_write(struct file *file, const char *buffer, size_t count, loff_t *ppos)
+{
+    char kbuffer[1024]; /* limited by kernel frame size, 1K should be enough */
+    char *buffer_cursor;
+    char *newline;
+    size_t bytes_left = count;
+
+    int status;
+
+    if(*ppos != 0) {
+        printk(KERN_ERR "writes to /dev/fake_battery must be completed in a single system call\n");
+        return -EINVAL;
+    }
+
+    if(count > 1024) {
+        printk(KERN_ERR "Too much data provided to /dev/fake_battery (limit 1024 bytes)\n");
+        return -EINVAL;
+    }
+
+    status = copy_from_user(kbuffer, buffer, count);
+
+    if(status != 0) {
+        printk(KERN_ERR "bad copy_from_user\n");
+        return -EINVAL;
+    }
+
+    buffer_cursor = kbuffer;
+
+    while((newline = memchr(buffer_cursor, '\n', bytes_left))) {
+        *newline = '\0';
+        /* XXX this is non-atomic */
+        status = handle_control_line(buffer_cursor, &ac_status, fake_battery_statuses);
+
+        if(status) {
+            return status;
+        }
+
+        bytes_left    -= (newline - buffer_cursor) + 1;
+        buffer_cursor  = newline + 1;
+    }
+
+    handle_charge_changes(ac_status, &fake_battery_statuses[0]);
+    handle_charge_changes(ac_status, &fake_battery_statuses[1]);
+
+    power_supply_changed(supplies[0]);
+    power_supply_changed(supplies[1]);
+    power_supply_changed(supplies[2]);
+
+    return count;
+}
+
+static struct file_operations control_device_ops = {
+    .owner = THIS_MODULE,
+    .read = control_device_read,
+    .write = control_device_write,
+};
+
+static struct miscdevice control_device = {
+    MISC_DYNAMIC_MINOR,
+    "fake_battery",
+    &control_device_ops,
 };
 
 static int
@@ -248,48 +385,6 @@ fake_ac_get_property(struct power_supply *psy,
     }
     return 0;
 }
-
-static char *fake_ac_supplies[] = {
-    "BAT0",
-    "BAT1",
-};
-
-static struct power_supply_desc descriptions[] = {
-    {
-        .name = "BAT0",
-        .type = POWER_SUPPLY_TYPE_BATTERY,
-        .properties = fake_battery_properties,
-        .num_properties = ARRAY_SIZE(fake_battery_properties),
-        .get_property = fake_battery_get_property1,
-    },
-
-    {
-        .name = "BAT1",
-        .type = POWER_SUPPLY_TYPE_BATTERY,
-        .properties = fake_battery_properties,
-        .num_properties = ARRAY_SIZE(fake_battery_properties),
-        .get_property = fake_battery_get_property2,
-    },
-
-    {
-        .name = "AC0",
-        .type = POWER_SUPPLY_TYPE_MAINS,
-        .properties = fake_ac_properties,
-        .num_properties = ARRAY_SIZE(fake_ac_properties),
-        .get_property = fake_ac_get_property,
-    },
-};
-
-static struct power_supply_config configs[] = {
-    { },
-    { },
-    {
-        .supplied_to = fake_ac_supplies,
-        .num_supplicants = ARRAY_SIZE(fake_ac_supplies),
-    },
-};
-
-static struct power_supply *supplies[sizeof(descriptions) / sizeof(descriptions[0])];
 
 static int __init
 fake_battery_init(void)
