@@ -7,6 +7,10 @@ Linux.
 This is my first module, so don't hold me responsible if you use it and it
 causes a kernel panic. =)
 
+This is something I wrote a while ago and am not actively maintaining, so
+don't be surprised if it doesn't compile against newer kernels or otherwise
+does not work!
+
 ## Loading the module
 
 You can build the module with a simple `make`, and load it with `insmod`:
